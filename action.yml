@@ -1,0 +1,23 @@
+name: "deadpath"
+description: "Find path references in your docs that no longer exist."
+branding:
+  icon: "alert-triangle"
+  color: "orange"
+inputs:
+  path:
+    description: "Directory to check."
+    required: false
+    default: "."
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - name: Install deadpath
+      shell: bash
+      run: pip install deadpath
+    - name: Run deadpath
+      shell: bash
+      run: deadpath check "${{ inputs.path }}" --format github

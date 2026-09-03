@@ -1,0 +1,25 @@
+[build-system]
+# >=77 is required, not cosmetic: the `license = "MIT"` SPDX string below is
+# PEP 639 syntax, which older setuptools rejects. Local env has 70.2.0, so
+# build isolation must pull a newer one.
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deadpath"
+version = "0.1.0"
+description = "Find path references in your docs that no longer exist."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Isaiah Gardea" }]
+keywords = ["documentation", "linter", "markdown", "agents", "claude"]
+
+[project.scripts]
+deadpath = "deadpath.cli:run"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

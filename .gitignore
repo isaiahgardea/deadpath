@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+.venv/
+
+# Build ledger and task reports - local scratch, never published.
+.superpowers/
