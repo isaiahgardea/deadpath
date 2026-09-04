@@ -209,3 +209,39 @@ def test_native_absolute_path_that_does_not_exist_is_reported(tmp_path):
     doc.write_text("x", encoding="utf-8")
     absolute = str(tmp_path / "does-not-exist.txt")
     assert not resolve_candidate(cand(absolute), tmp_path, doc)
+
+
+def test_vault_mode_backslash_relative_path_resolves(tmp_path):
+    # Found on the first real vault run (090426, ~1000 files): three findings
+    # for `Projects\Reaper`, a Windows path into a DIFFERENT tree that happens
+    # to collide with a real vault directory name (`Projects/`). Vault
+    # conventions -- wikilinks and vault-relative links -- always use forward
+    # slashes, so a backslash-separated RELATIVE path in a vault is a path
+    # into another tree and cannot be checked from the vault root.
+    #
+    # Config cannot fix this: resolve normalises "\" to "/" before the
+    # allowlist prefix check runs, so allowlisting `Projects\` would also
+    # silence every legitimate `Projects/...` vault link.
+    #
+    # Per this module's precision-over-coverage principle, uncertain resolves.
+    vault = tmp_path / "vault"
+    (vault / "Projects").mkdir(parents=True)
+    doc = vault / "Task Board.md"
+    doc.write_text("x", encoding="utf-8")
+    # Projects/Reaper does not exist in the vault; with forward slashes this
+    # is a genuine finding and must stay one.
+    assert not resolve_candidate(cand("Projects/Reaper"), vault, doc, vault_root=vault)
+    # Same path with backslashes is a Windows path into another tree.
+    assert resolve_candidate(cand(r"Projects\Reaper"), vault, doc, vault_root=vault)
+
+
+def test_repo_mode_backslash_relative_path_still_checked(tmp_path):
+    # The vault-mode rule above must NOT leak into repo mode: on Windows a
+    # repo-relative path written with backslashes is ordinary and must still
+    # be resolved normally, in both directions.
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("x", encoding="utf-8")
+    doc = tmp_path / "README.md"
+    doc.write_text("x", encoding="utf-8")
+    assert resolve_candidate(cand(r"src\a.py"), tmp_path, doc)
+    assert not resolve_candidate(cand(r"src\missing.py"), tmp_path, doc)

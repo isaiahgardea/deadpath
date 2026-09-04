@@ -32,6 +32,31 @@ def resolve_candidate(
     is_posix_absolute = raw.startswith("/")
     is_windows_absolute = bool(DRIVE_RE.match(raw))
 
+    # Vault mode only: a RELATIVE path written with backslashes is a Windows
+    # path into a different tree, not a vault-relative one. Obsidian's own
+    # conventions -- wikilinks and vault-relative links -- are always
+    # forward-slashed, so the separator is real information here.
+    #
+    # Found on the first ~1000-file vault run (090426): `Projects\Reaper`
+    # flagged three times. It is a real directory under the user's Claude
+    # projects folder whose name collides with a real vault directory
+    # (`Projects/`), so it resolved against the wrong root and reported a
+    # valid reference as broken.
+    #
+    # Config cannot express this. The normalisation above runs before the
+    # allowlist prefix check, so allowlisting `Projects\` would collapse to
+    # `Projects/` and silence every legitimate vault link too.
+    #
+    # Scoped to vault mode deliberately: in repo mode on Windows a
+    # backslashed repo-relative path is ordinary and must still be checked.
+    if (
+        vault_root is not None
+        and not is_posix_absolute
+        and not is_windows_absolute
+        and "\\" in candidate.raw
+    ):
+        return True
+
     try:
         if is_posix_absolute or is_windows_absolute:
             native = os.name == "nt" if is_windows_absolute else os.name != "nt"
