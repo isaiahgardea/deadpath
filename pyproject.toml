@@ -14,6 +14,29 @@ requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Isaiah Gardea" }]
 keywords = ["documentation", "linter", "markdown", "agents", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Documentation",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Typing :: Typed",
+]
+
+# PyPI renders these as the sidebar links on the project page. Without them
+# the page has no route back to the source, which for a zero-dependency tool
+# asking to be trusted is most of the credibility.
+[project.urls]
+Homepage = "https://github.com/isaiahgardea/deadpath"
+Repository = "https://github.com/isaiahgardea/deadpath"
+Issues = "https://github.com/isaiahgardea/deadpath/issues"
+Changelog = "https://github.com/isaiahgardea/deadpath/releases"
 
 [project.scripts]
 deadpath = "deadpath.cli:run"
