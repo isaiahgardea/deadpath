@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deadpath"
-version = "0.1.0"
+version = "0.2.0"
 description = "Find path references in your docs that no longer exist."
 readme = "README.md"
 requires-python = ">=3.11"

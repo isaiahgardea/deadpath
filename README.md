@@ -20,27 +20,7 @@ argument, unreadable config). `--format` controls output: `human` (default), `js
 
 ## Real output
 
-Run against a ~1,000-file personal Obsidian vault — a knowledge base *about* work that
-mostly lives elsewhere, so this is close to a worst case for false positives:
-
-```
-$ deadpath check . --vault
-Daily Notes/062726.md:23  .claude/commands/week.md  -- path does not exist
-Gmail/Gmail Dashboard.md:61  Patterns/gmail-tracking.md  -- path does not exist
-House/Home Inventory.md:12  assets/Trane_Warranty.pdf  -- path does not exist
-Music/Dawn Mix Log.md:22  docs/pipeline/dawn-audio-to-midi-handoff.md  -- path does not exist
-Music/README.md:21  scripts/mix_analyze.py  -- path does not exist
-Projects/Portfolio Site/Overview.md:15  src/App.jsx  -- path does not exist
-... (55 more)
-
-68 dead paths found.
-```
-
-Almost every one of those is a *mention*, not a broken link — the vault's notes describe
-projects whose files live in other trees entirely. That is the failure mode, and it is
-why the section below says vaults are the wrong target.
-
-And against [`fiberplane/drift`](https://github.com/fiberplane/drift), a real, actively
+Against [`fiberplane/drift`](https://github.com/fiberplane/drift), a real, actively
 maintained repo, run cleanly (no vault mode, no config):
 
 ```
@@ -58,6 +38,34 @@ not exist — drift's actual `src/` holds markdown.zig, symbols.zig, target.zig,
 vcs.zig. A genuinely stale path in the agent instructions of the nearest thing this tool
 has to a competitor, found by running it, not by construction.
 
+### The harder case: a multi-root corpus
+
+A ~1,000-file personal Obsidian vault, run with no config at all:
+
+```
+$ deadpath check . --vault
+73 dead paths found.
+```
+
+Triaged by hand, only **4** were real. The other 69 split two ways: 50 were valid paths
+pointing into a *different tree* — the vault is an index of ~34 separate projects and
+documents each one using paths relative to **that project's** root — and 14 pointed at
+cloud storage that isn't on the local disk at all.
+
+That is a ~5% precision rate, and it is the honest result of pointing this tool at a
+multi-root corpus with no configuration. With a `.deadpath.toml` (below) and one bug fix
+the same run produced **zero**, having first found four genuine dead references. The
+oldest had been broken for about eight weeks: an instruction file pointing at a project
+directory that was merged into another project and deleted. Three of the four had *moved*
+rather than been deleted — worth checking before you assume a finding means "gone."
+
+The bug that run exposed is worth naming, because no fixture would have caught it. A
+Windows-style relative path, `Projects\Reaper`, collided with a real vault directory of
+the same name and resolved against the wrong root. In vault mode a backslashed relative
+path is now treated as a path into another tree, since Obsidian's own conventions —
+wikilinks and vault-relative links — are always forward-slashed. Four clean validation
+corpora, all single-root, could not have surfaced that.
+
 ### Validation, measured against four real corpora
 
 | Corpus | markdown files | findings |
@@ -65,7 +73,7 @@ has to a competitor, found by running it, not by construction.
 | [remarkjs/remark-validate-links](https://github.com/remarkjs/remark-validate-links) | 26 | 0 |
 | [lycheeverse/lychee](https://github.com/lycheeverse/lychee) | 66 | 0 |
 | [fiberplane/drift](https://github.com/fiberplane/drift) | 17 | 14 (1 genuine, 13 illustrative examples in its own design docs) |
-| A 1,000-file personal Obsidian vault | ~1000 | ~68 (a live corpus; the count moves as notes are edited) |
+| A 1,000-file personal Obsidian vault (multi-root) | ~1000 | 73 unconfigured (~5% precision) → 0 configured, after fixing the 4 genuine findings |
 
 ## What it deliberately does not check
 
@@ -100,12 +108,26 @@ path exist.
   reference. This is exactly why drift shows 14 findings for one genuine stale path — most
   of the rest are its own docs walking through worked examples. Use `exclude_globs` (below)
   on docs that are mostly examples.
-- **Personal knowledge vaults are the wrong primary target.** A vault is a knowledge base
-  *about* work that mostly lives elsewhere — other repos, Google Drive, a Task Board — so
-  most of its path-shaped text is a mention, not a link, and was never going to resolve.
-  `--vault` mode exists and works (it also resolves Obsidian wikilinks and their implicit
-  `.md`), but a repo, where a path really is supposed to point at a file in the same tree,
-  is the audience this tool is actually built for.
+- **Multi-root corpora need a config, and are unusable without one.** deadpath resolves
+  against one root. A corpus that *documents other trees* — a knowledge vault indexing
+  many projects, a monorepo's top-level docs describing sibling packages — will contain
+  paths that are valid relative to a root deadpath isn't looking at. Measured: ~5%
+  precision unconfigured, 100% with a config. This is the single biggest thing to know
+  before pointing it at something that isn't a self-contained repo. The fix is
+  `allowlist_prefixes` for path prefixes belonging to other trees, plus `exclude_globs`
+  for whole documents whose job is describing another tree:
+
+  ```toml
+  [deadpath]
+  vault_mode = true
+  # Documents that describe OTHER trees; every path in them is relative to that tree.
+  exclude_globs = ["Projects/*/Overview.md", "Vendor Docs/**"]
+  # Prefixes belonging to another tree, or to storage that isn't on this disk.
+  allowlist_prefixes = [".claude/", "src/", "docs/", "Mailbox/"]
+  ```
+
+  A repo, where a path really is supposed to point at a file in the same tree, needs none
+  of this and is the audience the tool is built for.
 
 ## Design principle: precision over coverage
 
@@ -137,7 +159,7 @@ vault_mode = false                 # Obsidian mode: resolve wikilinks + implicit
 | `scan_globs` | list of glob patterns | `["**/*.md"]` | Which files get scanned. Uses `pathlib.Path.glob` semantics (`*` does not cross `/`, `**` does). |
 | `exclude_globs` | list of glob patterns | `[]` | Files to skip after `scan_globs` matches them. Uses `fnmatch` semantics (`*` *does* cross `/`) — a deliberate dialect difference from `scan_globs`, not a bug. |
 | `allowlist_prefixes` | list of path prefixes | `[]` | Candidates whose (normalized) path starts with one of these are never reported, even if they don't resolve — useful for known-future paths or staging areas. |
-| `vault_mode` | boolean | `false` | Also equivalent to the `--vault` CLI flag. Resolves paths relative to the vault root, reads `[[wikilinks]]`, and tries the implicit `.md` extension Obsidian applies to extensionless links. |
+| `vault_mode` | boolean | `false` | Also equivalent to the `--vault` CLI flag. Resolves paths relative to the vault root, reads `[[wikilinks]]`, and tries the implicit `.md` extension Obsidian applies to extensionless links. It also treats a **backslashed relative path** (`Projects\Reaper`) as a path into another tree and never flags it — Obsidian's own conventions are always forward-slashed, so the separator carries root information. Repo mode is unaffected: there, a backslashed relative path is ordinary and still checked. |
 
 An advanced fifth key, `extensions`, overrides the built-in list of recognized file
 extensions used by the positive-evidence gate above; the default list covers the common
